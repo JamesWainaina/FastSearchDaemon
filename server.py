@@ -5,19 +5,20 @@ import ssl
 import logging
 import signal
 import sys
-from configparser import ConfigParser, NoOptionError, NoSectionError
+from configparser import ConfigParser
 from pathlib import Path
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
+
 # Set up logging
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Global variable for server socket
-server_ssl = None
+server_ssl: ssl.SSLSocket | None = None
 
-def signal_handler(sig, frame):
+def signal_handler(sig: int, frame) -> None:
     """Handle termination signals gracefully."""
     global server_ssl
     logger.info("Signal received, shutting down the server gracefully.")
@@ -25,14 +26,15 @@ def signal_handler(sig, frame):
         server_ssl.close()
     sys.exit(0)
 
-def run_server():
+def run_server() -> None:
+    """Run the SSL server."""
     global server_ssl 
 
     # Create a socket object
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     config_path = "config.init"
-    linuxpath = read_config(config_path)
+    linuxpath, reread_on_query = read_config(config_path)
 
     if linuxpath is None:
         logger.error("No 'linuxpath' found in the configuration file")
@@ -43,7 +45,6 @@ def run_server():
 
     # Bind the socket to a specific address and port
     server.bind((server_ip, port))
-    # Listen for incoming connections
     server.listen(5)  # Allow multiple connections
     logger.info(f"Listening on {server_ip}:{port}")
 
@@ -62,18 +63,17 @@ def run_server():
                 logger.info(f"Accepted connection from {client_address[0]}:{client_address[1]}")
 
                 # Handle the client connection
-                executor.submit(handle_client, client_socket, linuxpath)
+                executor.submit(handle_client, client_socket, linuxpath, reread_on_query)
 
             except Exception as e:
                 logger.error(f"Error while handling client: {e}")
                 continue
 
-def handle_client(client_socket, linux_path):
+def handle_client(client_socket: socket.socket, linux_path: Path, reread_on_query: bool) -> None:
     """Handles client communication."""
     with client_socket:
         while True:
-            request = client_socket.recv(1024)
-            request = request.decode("utf-8").strip()  # Convert bytes to string and strip whitespace
+            request = client_socket.recv(1024).decode("utf-8").strip()  # Convert bytes to string and strip whitespace
 
             # If we receive "close" from the client, then we break out of the loop
             if request.lower() == "close":
@@ -83,46 +83,57 @@ def handle_client(client_socket, linux_path):
             logger.info(f"Received: {request}")
 
             # Check if the search string exists in the file
-            response = check_string_file(linux_path, request)
+            response = check_string_file(linux_path, request, reread_on_query)
             client_socket.send(response.encode("utf-8"))
 
     logger.info("Connection to client closed")
 
-def read_config(file_path):
-    """Reads the configuration file and returns the linux path."""
+def read_config(file_path: str) -> tuple[Path | None, bool]:
+    """Reads the configuration file and returns the linux path and reread option."""
     config = ConfigParser()
     config.read(file_path)
 
     # Check if 'DEFAULT' section is present in the configuration file
     if 'DEFAULT' in config:
         linuxpath = config['DEFAULT'].get('linuxpath', None)
+        reread_on_query = config['DEFAULT'].getboolean('REREAD_ON_QUERY', fallback=False)
         if linuxpath is not None:
-            return Path(linuxpath).resolve()  # Resolve to an absolute path
+            return Path(linuxpath).resolve(), reread_on_query  # Return both values
     else:
         logger.error("No 'DEFAULT' section found in the configuration file")
-    return None
+    return None, False  # Return default values if not found
 
-def check_string_file(file_path, search_string):
+def check_string_file(file_path: Path, search_string: str, reread_on_query: bool) -> str:
     """Checks if the search string is present in the file."""
+    file_content_cache: str | None = None  # To cache the file content
+
     try:
-        # use grep to search for the string
-        result = subprocess.run(
-            ['grep', '-Fq', search_string, str(file_path)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-        # check if the grep command was successful
-        if result.returncode == 0: 
-            return "STRING EXISTS\n"
+        if reread_on_query:
+            # If reread_on_query is set to True, read the file content every time
+            result = subprocess.run(
+                ['grep', '-Fq', search_string, str(file_path)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            # Check if the grep command was successful
+            return "STRING EXISTS\n" if result.returncode == 0 else "STRING NOT FOUND\n"
         else:
-            return "STRING NOT FOUND\n"
+            # If reread_on_query is False, check in the cache
+            if file_content_cache is None:
+                # Read the file for the first time
+                with open(file_path, 'r') as file:
+                    file_content_cache = file.read()
+
+            # Check if the search string is in the cached content
+            return "STRING EXISTS\n" if search_string in file_content_cache else "STRING NOT FOUND\n"
+
     except FileNotFoundError as e:
         logger.error(f"Error reading file {file_path}: {e}")
         return "ERROR\n"
     except Exception as e:
         logger.error(f"Error executing grep: {e}")
         return "ERROR\n"
-        
+
 if __name__ == "__main__":
     # Set up signal handling for graceful shutdown
     signal.signal(signal.SIGINT, signal_handler)  # Handle Ctrl+C
