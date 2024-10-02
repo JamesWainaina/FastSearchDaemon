@@ -73,7 +73,8 @@ def handle_client(client_socket: socket.socket, linux_path: Path, reread_on_quer
     """Handles client communication."""
     with client_socket:
         while True:
-            request = client_socket.recv(1024).decode("utf-8").strip()  # Convert bytes to string and strip whitespace
+            request = client_socket.recv(1024)
+            request = request.decode("utf-8").rstrip('\x00').strip()  # Convert bytes to string and strip whitespace
 
             # If we receive "close" from the client, then we break out of the loop
             if request.lower() == "close":
