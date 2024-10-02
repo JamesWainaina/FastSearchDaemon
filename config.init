@@ -1,0 +1,4 @@
+[DEFAULT]
+linuxpath= ./200k.txt
+REREAD_ON_QUERY=true
+SSL_ENABLED=false
