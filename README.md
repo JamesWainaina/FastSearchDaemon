@@ -14,10 +14,12 @@ This is a multi-threaded TCP server that handles concurrent client connections a
 
 ## Tech Stack
 
-- **Python**: The server is implemented using Python for ease of development and performance.
-- **Flask**: A lightweight web framework used for handling requests.
-- **Nginx**: Used for load balancing and managing incoming connections.
-- **MySQL**: Database for configuration and logging data storage (if needed).
+- ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
+- The server is implemented using Python for ease of development and performance.
+- ![Nginx](https://img.shields.io/badge/Nginx-009639?style=for-the-badge&logo=nginx&logoColor=white)
+- Used for load balancing and managing incoming connections.
+-![MySQL](https://img.shields.io/badge/MySQL-005C84?style=for-the-badge&logo=mysql&logoColor=white)
+- Database for configuration and logging data storage (if needed).
 - **SSL/TLS**: Secure communication between clients and the server.
 
 ## Installation
