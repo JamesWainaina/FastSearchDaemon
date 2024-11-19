@@ -26,12 +26,21 @@ To run the server as a Linux daemon or service, follow these steps:
 
 ### 1. Clone the repository
 
-```bash
 git clone https://github.com/yourusername/your-repository.git
-cd your-repository
-
-
-
+cd your-repository 
 
 ### 2. Install dependencies
+
 pip install -r requirements.txt
+
+### 3. Configure the server
+Modify the configuration file to specify the correct file path (e.g., linuxpath=/root/200k.txt) and configure other settings such as the SSL option.
+
+
+### 4. Running the server
+To start the server as a daemon or service:
+sudo systemctl start your-server.service
+
+To stop the server:
+sudo systemctl stop your-server.service
+
